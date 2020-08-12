@@ -140,7 +140,7 @@ AUTOLOADER_COMMENT;
 	protected function parseAutoloadsType( array $packageMap, $type, PackageInterface $mainPackage ) {
 		$autoloads = array();
 
-		if ( 'psr-4' !== $type && 'classmap' !== $type && 'files' !== $type ) {
+		if ( 'psr-0' !== $type && 'psr-4' !== $type && 'classmap' !== $type && 'files' !== $type ) {
 			return parent::parseAutoloadsType( $packageMap, $type, $mainPackage );
 		}
 
@@ -156,8 +156,8 @@ AUTOLOADER_COMMENT;
 				$installPath = substr( $installPath, 0, -strlen( '/' . $package->getTargetDir() ) );
 			}
 
-			if ( 'psr-4' === $type && isset( $autoload['psr-4'] ) && is_array( $autoload['psr-4'] ) ) {
-				foreach ( $autoload['psr-4'] as $namespace => $paths ) {
+			if ( in_array( $type, array( 'psr-0', 'psr-4' ), true ) && isset( $autoload[ $type ] ) && is_array( $autoload[ $type ] ) ) {
+				foreach ( $autoload[ $type ] as $namespace => $paths ) {
 					$paths = is_array( $paths ) ? $paths : array( $paths );
 					foreach ( $paths as $path ) {
 						$relativePath              = empty( $installPath ) ? ( empty( $path ) ? '.' : $path ) : $installPath . '/' . $path;
@@ -217,32 +217,35 @@ AUTOLOADER_COMMENT;
 
 		$classmapString = '';
 
-		// Scan the PSR-4 and classmap directories for class files, and add them to the class map.
-		foreach ( $autoloads['psr-4'] as $namespace => $packages_info ) {
-			foreach ( $packages_info as $package ) {
-				$dir       = $filesystem->normalizePath(
-					$filesystem->isAbsolutePath( $package['path'] )
-						? $package['path']
-						: $basePath . '/' . $package['path']
-				);
-				$namespace = empty( $namespace ) ? null : $namespace;
-				$map       = ClassMapGenerator::createMap( $dir, $blacklist, $this->io, $namespace );
+		// Scan the PSR-0 and PSR-4 directories for class files, and add them to the class map.
+		foreach ( array( 'psr-0', 'psr-4' ) as $psr ) {
+			foreach ( $autoloads[ $psr ] as $namespace => $packages_info ) {
+				foreach ( $packages_info as $package ) {
+					$dir       = $filesystem->normalizePath(
+						$filesystem->isAbsolutePath( $package['path'] )
+							? $package['path']
+							: $basePath . '/' . $package['path']
+					);
+					$namespace = empty( $namespace ) ? null : $namespace;
+					$map       = ClassMapGenerator::createMap( $dir, $blacklist, $this->io, $namespace );
 
-				foreach ( $map as $class => $path ) {
-					$classCode       = var_export( $class, true );
-					$pathCode        = $this->getPathCode( $filesystem, $basePath, $vendorPath, $path );
-					$versionCode     = var_export( $package['version'], true );
-					$classmapString .= <<<CLASS_CODE
-	$classCode => array(
-		'version' => $versionCode,
-		'path'    => $pathCode
-	),
+					foreach ( $map as $class => $path ) {
+						$classCode       = var_export( $class, true );
+						$pathCode        = $this->getPathCode( $filesystem, $basePath, $vendorPath, $path );
+						$versionCode     = var_export( $package['version'], true );
+						$classmapString .= <<<CLASS_CODE
+		$classCode => array(
+			'version' => $versionCode,
+			'path'    => $pathCode
+		),
 CLASS_CODE;
-					$classmapString .= PHP_EOL;
+						$classmapString .= PHP_EOL;
+					}
 				}
 			}
 		}
 
+		// Scan the classmap directories for class files, and add them to the class map.
 		foreach ( $autoloads['classmap'] as $package ) {
 			$dir = $filesystem->normalizePath(
 				$filesystem->isAbsolutePath( $package['path'] )
